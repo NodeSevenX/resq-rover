@@ -4,24 +4,27 @@ Emergency supply delivery robot dashboard. GPS tracking, rover status, and ESP32
 
 Live demo: https://resq-rover.vercel.app
 
+> Built for **BuildFest 2026** (hackathon), **Hardware** category. Team NODE-X, PS-26: Emergency Supply Rover for Obstacle-Filled Environments, Guru Nanak Dev University.
+>
+> This dashboard is **vibecoded**: designed and built with AI assistance, then tested against the real ESP32 + STM32 hardware. Solution deck lives in [`docs/`](docs/) (PPT to be added).
+
 ## What it does
 
-- **Overview**: connection status, battery / speed / GPS / signal stats, live yard map, rover status, delivery checklist, WiFi logs
-- **Tracking**: full GPS trail map with fix quality and location finder
+- **Overview**: connection status, dual battery (ESP32 + STM32), speed, tilt, live yard map, 180-degree obstacle radar, rover status, delivery checklist, WiFi logs
+- **Tracking**: GPS trail map, location finder, chassis tilt readout
 - **WiFi Logs**: raw ESP32 log stream with search, level filters, and export
-- **SOS banner**: emergency broadcast + return-to-base, plus low-battery warning
-- **ESP setup guide**: in-app Arduino snippets for `/status`, `/gps`, `/logs` and the required CORS header
+- **SOS banner**: emergency broadcast + return-to-base, plus low-battery warning per pack
 
 ## ESP32 wiring
 
-The dashboard polls three HTTP endpoints on the ESP32 (default `http://192.168.4.2`):
+The dashboard polls the ESP32 over WiFi (default `http://192.168.4.2`):
 
 - `GET /status` -> `{ espBatteryPct, stmBatteryPct, rssiDbm, uptimeS, tempC, tiltXDeg, tiltYDeg, mode, payload, missionPct }`
 - `GET /gps` -> `{ lat, lng, speedMps, headingDeg, sats, hdop }`
 - `GET /radar` -> `[{ angle, dist }]` (or `[[angle, dist]]`, or `{ points: [...] }`; metres, cm auto-detected)
 - `GET /logs` -> plain text lines, or a JSON array
 
-Field names are tolerant (`battery`/`batteryPct`, `lng`/`lon`, `sats`/`satellites` all parse). Speed and heading are optional; they get derived from GPS deltas. Enable CORS on the ESP32 or the browser blocks polling. Open the **Setup** button in the app for copy-paste firmware.
+Field names are tolerant (`battery`, `espBattery`, `stmBattery`, `lng`/`lon`, `sats`/`satellites`, `pitch`/`tiltX` all parse). Speed and heading are optional: derived from GPS deltas. Enable CORS on the ESP32 or the browser blocks polling.
 
 Note: a hosted build (Vercel) cannot reach local `192.168.x.x` addresses. For live hardware data, run locally on the ESP32 WiFi network.
 
@@ -30,10 +33,10 @@ Note: a hosted build (Vercel) cannot reach local `192.168.x.x` addresses. For li
 ```bash
 npm install
 npm run dev      # local dev, http://localhost:5173
-npm run selftest # 12 backend checks (URL, geo math, validation)
+npm run selftest # backend checks (URL, geo math, validation, radar parsing)
 npm run build    # production build to dist/
 ```
 
 ## Stack
 
-React 18 + TypeScript + Vite 6 + Tailwind CSS 3 + React Router 6. No map-tile dependency; the yard map is a custom canvas so the prototype works offline.
+React 18 + TypeScript + Vite 6 + Tailwind CSS 3 + React Router 6. No map-tile dependency; the yard map and radar are custom canvas so the prototype works offline.
