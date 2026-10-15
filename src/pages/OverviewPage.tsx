@@ -3,6 +3,7 @@ import { ConnectionBar } from '../components/rover/ConnectionBar';
 import { StatsBar } from '../components/rover/StatsBar';
 import { RoverStatusCard } from '../components/rover/RoverStatusCard';
 import { GpsTrailMap } from '../components/rover/GpsTrailMap';
+import { RadarPanel } from '../components/rover/RadarPanel';
 import { WifiLogsPanel } from '../components/rover/WifiLogsPanel';
 import { ActivityLog } from '../components/rover/ActivityLog';
 import { SosBanner } from '../components/rover/SosBanner';
@@ -48,10 +49,14 @@ export function OverviewPage() {
         <div className="xl:col-span-5 min-w-0"><RoverStatusCard /></div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        <div className="min-w-0"><MissionChecklist /></div>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
+        <div className="xl:col-span-7 min-w-0"><RadarPanel /></div>
+        <div className="xl:col-span-5 min-w-0"><MissionChecklist /></div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="min-w-0"><WifiLogsPanel /></div>
-        <div className="min-w-0 md:col-span-2 xl:col-span-1"><ActivityLog /></div>
+        <div className="min-w-0"><ActivityLog /></div>
       </div>
 
       <p className="text-center text-[12px] text-slate-400 pt-2">

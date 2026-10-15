@@ -129,8 +129,7 @@ ok('battery percent normalizes 0.87 → 87', () => {
   assert.equal(Math.round(pct), 87);
 });
 
-ok('mission checklist transitions pickup→drop→return', () => {
-  const stages = [
+ok('mission checklist transitions pickup→drop→return', () => {  const stages = [
     { id: 'pickup', state: 'active' }, { id: 'enroute', state: 'todo' },
     { id: 'drop', state: 'todo' }, { id: 'return', state: 'todo' },
   ];
@@ -140,6 +139,55 @@ ok('mission checklist transitions pickup→drop→return', () => {
   assert.equal(after.find((s) => s.id === 'pickup').state, 'done');
   assert.equal(after.find((s) => s.id === 'enroute').state, 'active');
   assert.equal(after.filter((s) => s.state === 'done').length, 1);
+});
+
+ok('dual packs clamp independently, tilt clamps to +-90', () => {  assert.equal(clampNum(150, 0, 100, 80), 100);
+  assert.equal(clampNum(-4, 0, 100, 80), 0);
+  assert.equal(clampNum(120, -90, 90, 0), 90);
+  assert.equal(clampNum(-120, -90, 90, 0), -90);
+  const low = Math.min(87, 12) < 15;
+  assert.equal(low, true);
+  const ok2 = Math.min(87, 82) < 15;
+  assert.equal(ok2, false);
+});
+
+function parseRadarPayload(payload, maxM = 4) {
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : undefined));
+  let arr = payload;
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) arr = payload.points ?? payload.scan ?? payload.data ?? null;
+  if (!Array.isArray(arr)) return null;
+  const pts = [];
+  for (const item of arr) {
+    let a, d;
+    if (Array.isArray(item)) { a = num(item[0]); d = num(item[1]); }
+    else if (item && typeof item === 'object') {
+      a = num(item.angle ?? item.angleDeg ?? item.a ?? item.deg);
+      d = num(item.dist ?? item.distM ?? item.distance ?? item.d ?? item.cm ?? item.mm);
+      if (d !== undefined && ('mm' in item)) d = d / 1000;
+    }
+    if (a === undefined || d === undefined) continue;
+    if (d > 20) d = d / 100;
+    pts.push({ angleDeg: Math.max(0, Math.min(180, Math.round(a))), distM: Math.max(0.05, Math.min(maxM, d)) });
+  }
+  if (pts.length < 3) return null;
+  pts.sort((p, q) => p.angleDeg - q.angleDeg);
+  return pts;
+}
+
+ok('radar parses objects, pairs, cm heuristic, clamps', () => {
+  const a = parseRadarPayload([{ angle: 95, dist: 1.2 }, { angle: 10, dist: 3.9 }, { angle: 170, dist: 0.5 }]);
+  assert.ok(a && a.length === 3);
+  assert.equal(a[0].angleDeg, 10); // sorted
+  const cm = parseRadarPayload([{ a: 90, d: 120 }, { a: 80, d: 340 }, { a: 100, d: 400 }]);
+  assert.ok(cm);
+  assert.equal(cm[1].distM, 1.2); // 120cm -> 1.2m
+  const mm = parseRadarPayload([{ angle: 90, dist: 800, mm: true }, { angle: 80, dist: 800, mm: true }, { angle: 100, dist: 800, mm: true }]);
+  assert.ok(mm && Math.abs(mm[0].distM - 0.8) < 0.001);
+  const clamp = parseRadarPayload([{ angle: 999, dist: 99 }, { angle: -5, dist: 99 }, { angle: 90, dist: 99 }]);
+  assert.ok(clamp);
+  assert.equal(clamp[2].angleDeg, 180);
+  assert.equal(parseRadarPayload([{ angle: 90 }]), null); // too few valid
+  assert.equal(parseRadarPayload({ foo: 1 }), null);
 });
 
 console.log(`\n${pass} tests passed${process.exitCode ? ' (WITH FAILURES)' : ''}`);

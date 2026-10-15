@@ -1,6 +1,7 @@
 ﻿import { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react';
-import type { RoverTelemetry, TrailPoint, WifiLogLine, LogEntry, ConnectionState, RoverMode } from '../types';
-import { normalizeBaseUrl, fetchEsp32Status, fetchEsp32Gps, fetchEsp32Logs, parseLogLevel, haversineM, bearingDeg, fixQuality, isValidMode, clampNum, isValidIpInput, type FixQuality } from '../lib/esp32';
+import type { RoverTelemetry, TrailPoint, WifiLogLine, LogEntry, ConnectionState, RoverMode, RadarPoint } from '../types';
+import { RADAR_MAX_M } from '../types';
+import { normalizeBaseUrl, fetchEsp32Status, fetchEsp32Gps, fetchEsp32Logs, fetchEsp32Radar, parseLogLevel, haversineM, bearingDeg, fixQuality, isValidMode, clampNum, isValidIpInput, type FixQuality } from '../lib/esp32';
 
 // Prototype yard 24m x 16m anchored at BASE. Live GPS deltas map onto yard.
 const BASE_LAT = 28.6139;
@@ -27,6 +28,22 @@ function clampYard(x: number, y: number) {
   return { x: Math.max(0.5, Math.min(YARD_W - 0.5, x)), y: Math.max(0.5, Math.min(YARD_H - 0.5, y)) };
 }
 
+// Simulated 180-degree servo scan: fixed obstacles + one drifting object
+function makeSimScan(tick: number): RadarPoint[] {
+  const mover = 30 + ((tick * 7) % 120); // slow drift 30..150 deg
+  const pts: RadarPoint[] = [];
+  for (let a = 0; a <= 180; a += 5) {
+    let d = RADAR_MAX_M;
+    if (a >= 55 && a <= 80) d = 2.3; // wall
+    if (a >= 115 && a <= 125) d = 1.1; // pole, close
+    if (a >= 140 && a <= 152) d = 3.1; // crate
+    if (Math.abs(a - mover) <= 4) d = Math.min(d, 1.7); // moving object
+    d += (Math.random() - 0.5) * 0.12;
+    pts.push({ angleDeg: a, distM: Number(Math.max(0.1, Math.min(RADAR_MAX_M, d)).toFixed(2)) });
+  }
+  return pts;
+}
+
 function safeStoreGet(key: string, fallback: string): string {
   try {
     return localStorage.getItem(key) || fallback;
@@ -44,7 +61,8 @@ function safeStoreSet(key: string, value: string) {
 function initialTelemetry(): RoverTelemetry {
   const { lat, lng } = metersToGps(6, 5);
   return {
-    batteryPct: 87, rssiDbm: -58, uptimeS: 1240, tempC: 36.4,
+    espBatteryPct: 87, stmBatteryPct: 82, rssiDbm: -58, uptimeS: 1240, tempC: 36.4,
+    tiltXDeg: 2.1, tiltYDeg: -1.4,
     mode: 'EN_ROUTE', payload: 'MEDKIT-A', missionPct: 34,
     gps: { lat, lng, speedMps: 0.9, headingDeg: 48, sats: 9, hdop: 0.8, timestamp: Date.now() },
   };
@@ -71,6 +89,7 @@ export type MissionStage = {
 type RoverContextType = {
   telemetry: RoverTelemetry;
   trail: TrailPoint[];
+  radar: RadarPoint[];
   wifiLogs: WifiLogLine[];
   logs: LogEntry[];
   mission: MissionStage[];
@@ -82,6 +101,8 @@ type RoverContextType = {
   pollIntervalMs: number;
   lastFetchAt: number | null;
   fetchError: string | null;
+  pollsOk: number;
+  pollDrops: number;
   gpsAgeS: number;
   quality: FixQuality;
   distanceM: number;
@@ -115,11 +136,11 @@ export function RoverProvider({ children }: { children: ReactNode }) {
     return pts;
   });
   const [wifiLogs, setWifiLogs] = useState<WifiLogLine[]>([
-    { id: 'w0', raw: '[BOOT] RESQ Rover v0.4 init OK - ESP32 + GPS online', timestamp: Date.now() - 120000, level: 'info' },
+    { id: 'w0', raw: '[BOOT] RESQ Rover v0.4 init OK: ESP32 + GPS online', timestamp: Date.now() - 120000, level: 'info' },
     { id: 'w1', raw: '[WIFI] AP 192.168.4.1 linked RSSI -58 dBm', timestamp: Date.now() - 100000, level: 'info' },
     { id: 'w2', raw: '[GPS] 3D fix sats=9 hdop=0.8', timestamp: Date.now() - 90000, level: 'info' },
-    { id: 'w3', raw: '[NAV] route PICKUP B → DROP A loaded (4 wps)', timestamp: Date.now() - 80000, level: 'info' },
-    { id: 'w4', raw: '[PWR] batt 87% draw 1.2A temp 36.4C', timestamp: Date.now() - 60000, level: 'info' },
+    { id: 'w3', raw: '[NAV] route PICKUP B to DROP A loaded (4 wps)', timestamp: Date.now() - 80000, level: 'info' },
+    { id: 'w4', raw: '[PWR] esp 87% stm 82% draw 1.2A temp 36.4C', timestamp: Date.now() - 60000, level: 'info' },
   ]);
   const [logs, setLogs] = useState<LogEntry[]>([
     { id: 'l0', message: 'Simulator running - connect ESP32 IP for live hardware feed.', source: 'system', level: 'info', timestamp: Date.now() - 120000 },
@@ -127,6 +148,7 @@ export function RoverProvider({ children }: { children: ReactNode }) {
     { id: 'l2', message: 'Mission MEDKIT-A: en route to PICKUP B', source: 'rover', level: 'info', timestamp: Date.now() - 80000 },
   ]);
   const [connection, setConnection] = useState<ConnectionState>('simulated');
+  const [radar, setRadar] = useState<RadarPoint[]>(() => makeSimScan(0));
   const [mission, setMission] = useState<MissionStage[]>([
     { id: 'pickup', label: 'Pickup', detail: 'Collect MEDKIT-A at PICKUP B', state: 'active', at: null },
     { id: 'enroute', label: 'En route', detail: 'Navigate to DROP A', state: 'todo', at: null },
@@ -137,6 +159,8 @@ export function RoverProvider({ children }: { children: ReactNode }) {
   const [pollIntervalMs, setPollIntervalMs] = useState(3000);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [pollsOk, setPollsOk] = useState(0);
+  const [pollDrops, setPollDrops] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
   const simRef = useRef({ x: 16, y: 7, wp: 0, speed: 0.9 });
@@ -146,6 +170,7 @@ export function RoverProvider({ children }: { children: ReactNode }) {
   const intervalRef = useRef<number>(3000);
   const smoothSpeed = useRef(0.9);
   const outOfYardWarned = useRef(false);
+  const failStreak = useRef(0);
 
   const esp32Base = normalizeBaseUrl(esp32Ip);
   const ipValid = isValidIpInput(esp32Ip);
@@ -268,10 +293,13 @@ export function RoverProvider({ children }: { children: ReactNode }) {
 
       setTelemetry((prev) => ({
         ...prev,
-        batteryPct: Math.max(5, prev.batteryPct - 0.002),
+        espBatteryPct: Math.max(5, prev.espBatteryPct - 0.002),
+        stmBatteryPct: Math.max(5, prev.stmBatteryPct - 0.003),
         rssiDbm: -55 - Math.floor(Math.random() * 10),
         uptimeS: prev.uptimeS + 1,
         tempC: 36 + Math.random() * 1.4,
+        tiltXDeg: Number((Math.sin(Date.now() / 9000) * 6 + (Math.random() - 0.5) * 1.2).toFixed(1)),
+        tiltYDeg: Number((Math.cos(Date.now() / 11000) * 5 + (Math.random() - 0.5) * 1.2).toFixed(1)),
         missionPct: Math.min(99, prev.missionPct + 0.04),
         gps: {
           lat, lng,
@@ -289,10 +317,20 @@ export function RoverProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (connection === 'live') return;
+    let tick = 0;
+    const t = setInterval(() => {
+      tick += 1;
+      setRadar(makeSimScan(tick));
+    }, 2500);
+    return () => clearInterval(t);
+  }, [connection]);
+
+  useEffect(() => {
+    if (connection === 'live') return;
     const msgs = [
       '[GPS] 3D fix sats=9 hdop=0.8 dist 42.6m',
       '[NAV] x=16.2 y=7.1 hdg 048° wp PICKUP B 3.1m',
-      '[PWR] batt 86% draw 1.18A temp 36.6C',
+      '[PWR] esp 86% stm 81% draw 1.18A temp 36.6C',
       '[WIFI] RSSI -57 dBm rtt 12ms loss 0%',
       '[SYS] loop 1.00Hz heap 184KB ok',
     ];
@@ -303,15 +341,24 @@ export function RoverProvider({ children }: { children: ReactNode }) {
   // --- live poll ---
   const doPoll = useCallback(async (base: string) => {
     try {
-      const [st, gps, rawLogs] = await Promise.all([fetchEsp32Status(base), fetchEsp32Gps(base), fetchEsp32Logs(base)]);
-      if (!st && !gps && !rawLogs) {
-        setFetchError('No response from ESP32. Same WiFi? CORS enabled? Staying simulated.');
-        setConnection('simulated');
-        addLog(`ESP32 poll failed at ${base}`, 'system', 'warning');
+      const [st, gps, rawLogs, liveRadar] = await Promise.all([fetchEsp32Status(base), fetchEsp32Gps(base), fetchEsp32Logs(base), fetchEsp32Radar(base)]);
+      if (!st && !gps && !rawLogs && !liveRadar) {
+        failStreak.current += 1;
+        setPollDrops((n) => n + 1);
+        if (failStreak.current >= 3) {
+          setFetchError('No response from ESP32 after 3 tries. Same WiFi? CORS enabled? Staying simulated.');
+          setConnection('simulated');
+          addLog(`ESP32 poll failed at ${base}`, 'system', 'warning');
+        } else {
+          setConnection('connecting');
+          setFetchError(`No reply from ESP32, retrying (${failStreak.current}/3)...`);
+        }
         return;
       }
+      failStreak.current = 0;
       setFetchError(null);
       setLastFetchAt(Date.now());
+      setPollsOk((n) => n + 1);
       setConnection('live');
 
       let derivedSpeed: number | undefined;
@@ -356,10 +403,13 @@ export function RoverProvider({ children }: { children: ReactNode }) {
           timestamp: Date.now(),
         } : prev.gps;
         return {
-          batteryPct: clampNum(st?.batteryPct ?? prev.batteryPct, 0, 100, prev.batteryPct),
+          espBatteryPct: clampNum(st?.espBatteryPct ?? st?.batteryPct ?? prev.espBatteryPct, 0, 100, prev.espBatteryPct),
+          stmBatteryPct: clampNum(st?.stmBatteryPct ?? st?.batteryPct ?? prev.stmBatteryPct, 0, 100, prev.stmBatteryPct),
           rssiDbm: clampNum(st?.rssiDbm ?? prev.rssiDbm, -100, 0, prev.rssiDbm),
           uptimeS: Math.max(0, st?.uptimeS ?? prev.uptimeS + intervalRef.current / 1000),
           tempC: clampNum(st?.tempC ?? prev.tempC, -20, 90, prev.tempC),
+          tiltXDeg: clampNum(st?.tiltXDeg ?? prev.tiltXDeg, -90, 90, prev.tiltXDeg),
+          tiltYDeg: clampNum(st?.tiltYDeg ?? prev.tiltYDeg, -90, 90, prev.tiltYDeg),
           mode,
           payload: String(st?.payload ?? prev.payload).slice(0, 24),
           missionPct: clampNum(st?.missionPct ?? prev.missionPct, 0, 100, prev.missionPct),
@@ -389,9 +439,19 @@ export function RoverProvider({ children }: { children: ReactNode }) {
           return [...fresh.reverse(), ...prev].slice(0, 200);
         });
       }
+
+      if (liveRadar) {
+        setRadar(liveRadar.map((p) => ({ angleDeg: p.angleDeg, distM: p.distM })));
+      }
     } catch (e) {
-      setFetchError(e instanceof Error ? e.message : 'Poll failed');
-      setConnection('error');
+      failStreak.current += 1;
+      setPollDrops((n) => n + 1);
+      if (failStreak.current >= 3) {
+        setFetchError(e instanceof Error ? e.message : 'Poll failed');
+        setConnection('error');
+      } else {
+        setFetchError(`Link hiccup, retrying (${failStreak.current}/3)...`);
+      }
     }
   }, [addLog]);
 
@@ -421,6 +481,7 @@ export function RoverProvider({ children }: { children: ReactNode }) {
     // support ?ip= override: user pastes link with IP and it just works
     safeStoreSet('resq-esp32-ip', esp32Ip.trim());
     outOfYardWarned.current = false;
+    failStreak.current = 0;
     setConnection('connecting');
     addLog(`Probing ESP32 at ${base} (/status /gps /logs)...`, 'system', 'info');
     void doPoll(base);
@@ -464,7 +525,7 @@ export function RoverProvider({ children }: { children: ReactNode }) {
   const missionDone = mission.every((s) => s.state === 'done');
 
   return (
-    <RoverContext.Provider value={{ telemetry, trail, wifiLogs, logs, mission, missionDone, connection, esp32Ip, esp32Base, ipValid, pollIntervalMs, lastFetchAt, fetchError, gpsAgeS, quality, distanceM, setEsp32Ip, setPollIntervalMs, connect, disconnect, sendCommand, clearLogs, confirmPickup, confirmDrop, completeReturn, resetMission, triggerSOS, resolveSOS, returnToBase }}>
+    <RoverContext.Provider value={{ telemetry, trail, radar, wifiLogs, logs, mission, missionDone, connection, esp32Ip, esp32Base, ipValid, pollIntervalMs, lastFetchAt, fetchError, pollsOk, pollDrops, gpsAgeS, quality, distanceM, setEsp32Ip, setPollIntervalMs, connect, disconnect, sendCommand, clearLogs, confirmPickup, confirmDrop, completeReturn, resetMission, triggerSOS, resolveSOS, returnToBase }}>
       {children}
     </RoverContext.Provider>
   );

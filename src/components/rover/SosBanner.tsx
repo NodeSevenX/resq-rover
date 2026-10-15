@@ -4,11 +4,16 @@ import { useRover } from '../../context/RoverContext';
 export function SosBanner() {
   const { telemetry, resolveSOS, returnToBase } = useRover();
   const sos = telemetry.mode === 'SOS';
-  const lowBatt = telemetry.batteryPct < 15 && !sos;
+  const lowEsp = telemetry.espBatteryPct < 15;
+  const lowStm = telemetry.stmBatteryPct < 15;
+  const lowBatt = (lowEsp || lowStm) && !sos;
   if (!sos && !lowBatt) return null;
+  const lowLabel = lowEsp && lowStm
+    ? 'Both packs under 15%'
+    : lowEsp ? `ESP32 pack ${Math.round(telemetry.espBatteryPct)}%` : `STM32 pack ${Math.round(telemetry.stmBatteryPct)}%`;
 
   return (
-    <div className={`relative overflow-hidden rounded-[18px] border px-5 py-4 sm:px-6 sm:py-5 shadow-xl ${sos ? 'bg-gradient-to-r from-red-700 via-red-600 to-red-700 border-red-500' : 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 border-amber-400'}`}>
+    <div className={`relative overflow-hidden rounded-[18px] border px-5 py-4 sm:px-6 sm:py-5 shadow-xl ${sos ? 'bg-gradient-to-r from-orange-700 via-orange-600 to-orange-700 border-orange-500' : 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 border-amber-400'}`}>
       <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.25) 0 12px, transparent 12px 24px)' }} />
       <div className="relative flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex items-center gap-3.5 flex-1 min-w-0">
@@ -21,15 +26,15 @@ export function SosBanner() {
           </div>
           <div className="min-w-0">
             <p className="text-[15px] sm:text-[17px] font-extrabold text-white tracking-tight leading-snug">
-              {sos ? 'SOS BEACON ACTIVE: EMERGENCY BROADCAST' : `Low battery ${Math.round(telemetry.batteryPct)}%: return advised`}
+              {sos ? 'SOS BEACON ACTIVE: EMERGENCY BROADCAST' : `Low battery (${lowLabel}): return advised`}
             </p>
             <p className="text-[12px] sm:text-[13px] text-white/80 mt-0.5">
-              {sos ? 'All operators alerted • rover holding position' : 'Finish the drop, then return to base'}
+              {sos ? 'All operators alerted: rover holding position' : 'Finish the drop, then return to base'}
             </p>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
-          <button onClick={returnToBase} className="h-11 px-5 rounded-xl bg-white text-red-700 text-[14px] font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto">
+          <button onClick={returnToBase} className="h-11 px-5 rounded-xl bg-white text-orange-700 text-[14px] font-bold hover:bg-orange-50 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto">
             <Home className="w-4 h-4" /> Return to base
           </button>
           {sos && (
@@ -42,6 +47,3 @@ export function SosBanner() {
     </div>
   );
 }
-
-
-

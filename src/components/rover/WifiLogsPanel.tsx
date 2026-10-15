@@ -12,7 +12,7 @@ const tagColor: Record<string, string> = {
   CMD: 'text-blue-300 bg-blue-500/10 border-blue-500/25',
   SYS: 'text-slate-300 bg-white/5 border-white/10',
   BOOT: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25',
-  SOS: 'text-red-300 bg-red-500/15 border-red-500/30',
+  SOS: 'text-orange-300 bg-orange-500/15 border-orange-500/30',
 };
 
 export function WifiLogsPanel({ limit = 16 }: { limit?: number }) {
@@ -44,7 +44,7 @@ export function WifiLogsPanel({ limit = 16 }: { limit?: number }) {
           <button onClick={() => setPaused(!paused)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors" title={paused ? 'Resume' : 'Pause'}>
             {paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
           </button>
-          <button onClick={clearLogs} className="p-2 rounded-lg text-slate-400 hover:text-red-300 hover:bg-red-500/10 transition-colors" title="Clear">
+          <button onClick={clearLogs} className="p-2 rounded-lg text-slate-400 hover:text-orange-300 hover:bg-orange-500/10 transition-colors" title="Clear">
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -69,7 +69,7 @@ export function WifiLogsPanel({ limit = 16 }: { limit?: number }) {
             <div key={l.id} className="flex gap-2.5 py-1.5 px-2 rounded-lg hover:bg-white/[0.04]">
               <span className="text-slate-600 shrink-0">{new Date(l.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
               <span className={cn("shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md border h-fit", tagColor[tag] || tagColor.SYS)}>{tag}</span>
-              <span className={cn("break-all", l.level === 'error' ? 'text-red-300' : l.level === 'warn' ? 'text-amber-200' : 'text-slate-300')}>{msg}</span>
+              <span className={cn("break-all", l.level === 'error' ? 'text-orange-300' : l.level === 'warn' ? 'text-amber-200' : 'text-slate-300')}>{msg}</span>
             </div>
           );
         })}

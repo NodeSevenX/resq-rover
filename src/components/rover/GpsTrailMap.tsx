@@ -1,17 +1,10 @@
 ﻿import { useEffect, useRef } from 'react';
-import { Navigation, Satellite } from 'lucide-react';
+import { Navigation } from 'lucide-react';
 import { useRover, YARD_W, YARD_H } from '../../context/RoverContext';
 import { cn } from '../../lib/utils';
 
-const qualityStyle: Record<string, string> = {
-  EXCELLENT: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  GOOD: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-  WEAK: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  'NO FIX': 'bg-red-500/15 text-red-300 border-red-500/30',
-};
-
 export function GpsTrailMap({ height }: { height?: number }) {
-  const { trail, telemetry, quality, gpsAgeS, distanceM, connection } = useRover();
+  const { trail, telemetry, gpsAgeS, distanceM, connection } = useRover();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -71,7 +64,7 @@ export function GpsTrailMap({ height }: { height?: number }) {
 
     // zones
     const zones = [
-      { x: 2, y: 10.3, w: 5.2, h: 3.7, label: 'DROP A', sub: 'MEDKIT', color: 'rgba(239,68,68,0.13)', border: 'rgba(239,68,68,0.55)', text: '#fca5a5' },
+      { x: 2, y: 10.3, w: 5.2, h: 3.7, label: 'DROP A', sub: 'MEDKIT', color: 'rgba(249,115,22,0.13)', border: 'rgba(249,115,22,0.55)', text: '#fdba74' },
       { x: 16.8, y: 1.8, w: 5.2, h: 3.7, label: 'PICKUP B', sub: 'STAGING', color: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.55)', text: '#6ee7b7' },
     ];
     zones.forEach((z) => {
@@ -94,14 +87,14 @@ export function GpsTrailMap({ height }: { height?: number }) {
     // trail with glow
     if (trail.length >= 2) {
       ctx.save();
-      ctx.shadowColor = 'rgba(239,68,68,0.55)';
+      ctx.shadowColor = 'rgba(59,130,246,0.55)';
       ctx.shadowBlur = 10;
       ctx.lineWidth = 3.5;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       for (let i = 1; i < trail.length; i++) {
         const a = 0.1 + (0.9 * i) / trail.length;
-        ctx.strokeStyle = i > trail.length - 30 ? `rgba(251,191,36,${a.toFixed(2)})` : `rgba(239,68,68,${a.toFixed(2)})`;
+        ctx.strokeStyle = i > trail.length - 30 ? `rgba(251,191,36,${a.toFixed(2)})` : `rgba(96,165,250,${a.toFixed(2)})`;
         const [x1, y1] = toPx(trail[i - 1].x, trail[i - 1].y);
         const [x2, y2] = toPx(trail[i].x, trail[i].y);
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -141,9 +134,9 @@ export function GpsTrailMap({ height }: { height?: number }) {
 
       // rover body
       ctx.save();
-      ctx.shadowColor = 'rgba(239,68,68,0.8)';
+      ctx.shadowColor = 'rgba(59,130,246,0.8)';
       ctx.shadowBlur = 18;
-      ctx.fillStyle = '#ef4444';
+      ctx.fillStyle = '#2563eb';
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -157,7 +150,7 @@ export function GpsTrailMap({ height }: { height?: number }) {
     ctx.fillStyle = 'rgba(15,23,42,0.7)';
     ctx.strokeStyle = 'rgba(148,163,184,0.25)';
     ctx.beginPath(); ctx.arc(w - 34, 34, 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#f87171';
+    ctx.fillStyle = '#93c5fd';
     ctx.font = '800 11px Inter, sans-serif';
     ctx.fillText('N', w - 38.5, 30);
     ctx.fillStyle = 'rgba(148,163,184,0.8)';
@@ -173,8 +166,8 @@ export function GpsTrailMap({ height }: { height?: number }) {
 
   return (
     <div className="overflow-hidden rounded-[18px] border border-slate-800 bg-slate-950 shadow-xl">
-      <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-white/10">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-white/10 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
           <span className="relative flex w-2.5 h-2.5">
             <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-60", connection === 'live' ? 'bg-emerald-400' : 'bg-amber-400')} />
             <span className={cn("relative inline-flex h-2.5 w-2.5 rounded-full", connection === 'live' ? 'bg-emerald-400' : 'bg-amber-400')} />
@@ -187,8 +180,7 @@ export function GpsTrailMap({ height }: { height?: number }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className={cn("text-[11px] font-bold px-2.5 py-1 rounded-lg border", qualityStyle[quality])}>{quality}</span>
-          <span className={cn("text-[11px] font-bold px-2.5 py-1 rounded-lg border", stale ? 'bg-red-500/15 text-red-300 border-red-500/30' : 'bg-white/5 text-slate-300 border-white/10')}>
+          <span className={cn("text-[11px] font-bold px-2.5 py-1 rounded-lg border", stale ? 'bg-orange-500/15 text-orange-300 border-orange-500/30' : 'bg-white/5 text-slate-300 border-white/10')}>
             {gpsAgeS <= 1 ? 'LIVE' : `${gpsAgeS}s ago`}
           </span>
         </div>
@@ -203,9 +195,9 @@ export function GpsTrailMap({ height }: { height?: number }) {
           </span>
         </div>
         <div className="absolute right-4 bottom-4 flex items-center gap-2 rounded-xl bg-black/55 backdrop-blur px-3.5 py-2.5 border border-white/10">
-          <Satellite className="w-4 h-4 text-sky-300" />
+          <Navigation className="w-4 h-4 text-amber-300" />
           <span className="mono text-[12px] font-semibold text-white">
-            {telemetry.gps.sats} sats • HDOP {telemetry.gps.hdop.toFixed(1)} • {telemetry.gps.speedMps.toFixed(1)} m/s
+            {telemetry.gps.speedMps.toFixed(1)} m/s • {Math.round(telemetry.gps.headingDeg)}°
           </span>
         </div>
       </div>

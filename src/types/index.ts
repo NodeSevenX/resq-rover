@@ -18,10 +18,13 @@ export type GpsFix = {
 };
 
 export type RoverTelemetry = {
-  batteryPct: number;
+  espBatteryPct: number;
+  stmBatteryPct: number;
   rssiDbm: number;
   uptimeS: number;
   tempC: number;
+  tiltXDeg: number;
+  tiltYDeg: number;
   mode: RoverMode;
   payload: string;
   missionPct: number;
@@ -35,6 +38,13 @@ export type TrailPoint = {
   lng: number;
   timestamp: number;
 };
+
+export type RadarPoint = {
+  angleDeg: number; // 0 (right) .. 180 (left), 90 = straight ahead
+  distM: number; // metres, capped at RADAR_MAX_M
+};
+
+export const RADAR_MAX_M = 4;
 
 export type WifiLogLine = {
   id: string;

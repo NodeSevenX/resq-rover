@@ -12,7 +12,7 @@ const tagColor: Record<string, string> = {
   CMD: 'text-blue-300 bg-blue-500/10 border-blue-500/25',
   SYS: 'text-slate-300 bg-white/5 border-white/10',
   BOOT: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25',
-  SOS: 'text-red-300 bg-red-500/15 border-red-500/30',
+  SOS: 'text-orange-300 bg-orange-500/15 border-orange-500/30',
 };
 
 export function LogsPage() {
@@ -68,12 +68,12 @@ export function LogsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         {[
           { k: 'Total lines', v: counts.total, c: 'text-slate-900' },
           { k: 'Info', v: counts.info, c: 'text-sky-600' },
           { k: 'Warnings', v: counts.warn, c: 'text-amber-600' },
-          { k: 'Errors', v: counts.error, c: 'text-red-600' },
+          { k: 'Errors', v: counts.error, c: 'text-orange-600' },
           { k: 'Debug', v: counts.debug, c: 'text-slate-400' },
         ].map((s) => (
           <div key={s.k} className="panel p-4 text-center">
@@ -110,7 +110,7 @@ export function LogsPage() {
               <div key={l.id} className="flex gap-3 py-1.5 px-2 rounded-lg hover:bg-white/[0.04]">
                 <span className="text-slate-600 shrink-0 w-20">{new Date(l.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
                 <span className={cn("shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md border h-fit w-14 text-center",
-                  l.level === 'error' ? 'bg-red-500/15 text-red-300 border-red-500/30' : l.level === 'warn' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : l.level === 'debug' ? 'bg-white/5 text-slate-500 border-white/10' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25')}>
+                  l.level === 'error' ? 'bg-orange-500/15 text-orange-300 border-orange-500/30' : l.level === 'warn' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : l.level === 'debug' ? 'bg-white/5 text-slate-500 border-white/10' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25')}>
                   {l.level.toUpperCase()}
                 </span>
                 <span className={cn("shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md border h-fit", tagColor[tag] || tagColor.SYS)}>{tag}</span>

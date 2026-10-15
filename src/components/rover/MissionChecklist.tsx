@@ -30,7 +30,7 @@ export function MissionChecklist() {
               <div className="flex flex-col items-center">
                 <div className={cn(
                   "w-10 h-10 rounded-2xl flex items-center justify-center border-2 transition-colors",
-                  done ? 'bg-emerald-500 border-emerald-500 text-white' : active ? 'bg-red-50 border-red-500 text-red-600' : 'bg-slate-50 border-slate-200 text-slate-300'
+                  done ? 'bg-emerald-500 border-emerald-500 text-white' : active ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-300'
                 )}>
                   {done ? <Check className="w-5 h-5" /> : <Icon className="w-4.5 h-4.5" />}
                 </div>
@@ -72,7 +72,7 @@ export function MissionChecklist() {
       )}
       {activeIdx >= 0 && (
         <div className="mt-3 h-2 rounded-full bg-slate-100 overflow-hidden">
-          <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-amber-400 transition-all duration-500" style={{ width: `${(mission.filter((s) => s.state === 'done').length / mission.length) * 100}%` }} />
+          <div className="h-full rounded-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 transition-all duration-500" style={{ width: `${(mission.filter((s) => s.state === 'done').length / mission.length) * 100}%` }} />
         </div>
       )}
     </div>

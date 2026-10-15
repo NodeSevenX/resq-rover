@@ -16,7 +16,7 @@ export default {
         accent: '#06b6d4',
         success: '#22c55e',
         warning: '#f59e0b',
-        danger: '#ef4444',
+        danger: '#ea580c',
         surface: {
           DEFAULT: '#0f172a',
           light: '#1e293b',

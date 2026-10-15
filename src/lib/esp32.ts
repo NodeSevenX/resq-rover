@@ -1,18 +1,32 @@
 ﻿// ESP32 HTTP polling + geo math for RESQ Rover.
 // Endpoints (tolerant):
-//   GET <base>/status -> { batteryPct, rssiDbm, uptimeS, tempC, mode, payload, missionPct }
+//   GET <base>/status -> { espBatteryPct, stmBatteryPct, rssiDbm, uptimeS, tempC, tiltXDeg, tiltYDeg, mode, payload, missionPct }
 //   GET <base>/gps    -> { lat, lng, speedMps, headingDeg, sats, hdop }
 //   GET <base>/logs   -> text/plain lines OR JSON array / { logs: [] }
 
 export type Esp32StatusJson = {
   batteryPct?: number;
   battery?: number;
+  espBatteryPct?: number;
+  espBattery?: number;
+  espBatt?: number;
+  batteryEsp?: number;
+  stmBatteryPct?: number;
+  stmBattery?: number;
+  stmBatt?: number;
+  batteryStm?: number;
   rssiDbm?: number;
   rssi?: number;
   uptimeS?: number;
   uptime?: number;
   tempC?: number;
   temp?: number;
+  tiltXDeg?: number;
+  tiltYDeg?: number;
+  tiltX?: number;
+  tiltY?: number;
+  pitch?: number;
+  roll?: number;
   mode?: string;
   payload?: string;
   missionPct?: number;
@@ -87,6 +101,17 @@ export async function fetchEsp32Status(baseUrl: string): Promise<Esp32StatusJson
   const out: Esp32StatusJson = {};
   const b = num(j.batteryPct ?? j.battery ?? j.bat ?? j.soc);
   if (b !== undefined) out.batteryPct = Math.max(0, Math.min(100, b > 1 && b <= 100 ? b : b <= 1 ? b * 100 : b));
+  const eb = num(j.espBatteryPct ?? j.espBattery ?? j.espBatt ?? j.batteryEsp ?? j.battEsp);
+  if (eb !== undefined) out.espBatteryPct = Math.max(0, Math.min(100, eb > 1 && eb <= 100 ? eb : eb <= 1 ? eb * 100 : eb));
+  const sb = num(j.stmBatteryPct ?? j.stmBattery ?? j.stmBatt ?? j.batteryStm ?? j.battStm);
+  if (sb !== undefined) out.stmBatteryPct = Math.max(0, Math.min(100, sb > 1 && sb <= 100 ? sb : sb <= 1 ? sb * 100 : sb));
+  // legacy single-battery firmware fills both meters
+  if (out.espBatteryPct === undefined && b !== undefined) out.espBatteryPct = out.batteryPct;
+  if (out.stmBatteryPct === undefined && b !== undefined) out.stmBatteryPct = out.batteryPct;
+  const tx = num(j.tiltXDeg ?? j.tiltX ?? j.pitch ?? j.tilt_x ?? j.imuPitch);
+  if (tx !== undefined) out.tiltXDeg = tx;
+  const ty = num(j.tiltYDeg ?? j.tiltY ?? j.roll ?? j.tilt_y ?? j.imuRoll);
+  if (ty !== undefined) out.tiltYDeg = ty;
   const r = num(j.rssiDbm ?? j.rssi ?? j.wifiRssi);
   if (r !== undefined) out.rssiDbm = r;
   const u = num(j.uptimeS ?? j.uptime ?? j.uptime_s);
@@ -136,6 +161,62 @@ export async function fetchEsp32Logs(baseUrl: string): Promise<string[] | null> 
       } catch { /* plain text below */ }
       const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
       if (lines.length > 0) return lines.slice(-80);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+export type RadarPointRaw = { angleDeg: number; distM: number };
+
+// Tolerant 180-degree scan parser. Accepts:
+//   [{angle:95, dist:1.2}]  [{a:95, d:120}]  [[95, 1.2]]  {points:[...]}
+// Distances above 20 are treated as centimetres.
+export function parseRadarPayload(payload: unknown, maxM = 4): RadarPointRaw[] | null {
+  let arr: unknown = payload;
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const o = payload as Record<string, unknown>;
+    arr = o.points ?? o.scan ?? o.data ?? null;
+  }
+  if (!Array.isArray(arr)) return null;
+  const pts: RadarPointRaw[] = [];
+  for (const item of arr) {
+    let a: number | undefined;
+    let d: number | undefined;
+    if (Array.isArray(item)) {
+      a = num(item[0]); d = num(item[1]);
+    } else if (item && typeof item === 'object') {
+      const o = item as Record<string, unknown>;
+      a = num(o.angle ?? o.angleDeg ?? o.a ?? o.deg);
+      d = num(o.dist ?? o.distM ?? o.distance ?? o.d ?? o.cm ?? o.mm);
+      if (d !== undefined && ('mm' in o)) d = d / 1000;
+    }
+    if (a === undefined || d === undefined) continue;
+    if (d > 20) d = d / 100; // centimetres
+    pts.push({
+      angleDeg: Math.max(0, Math.min(180, Math.round(a))),
+      distM: Math.max(0.05, Math.min(maxM, d)),
+    });
+  }
+  if (pts.length < 3) return null;
+  pts.sort((p, q) => p.angleDeg - q.angleDeg);
+  return pts;
+}
+
+export async function fetchEsp32Radar(baseUrl: string, maxM = 4): Promise<RadarPointRaw[] | null> {
+  const candidates = [`${baseUrl}/radar`, `${baseUrl}/api/radar`, `${baseUrl}/scan`, `${baseUrl}/ultrasonic`];
+  for (const url of candidates) {
+    try {
+      const res = await fetchWithTimeout(url);
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (!text.trim()) continue;
+      try {
+        return parseRadarPayload(JSON.parse(text), maxM);
+      } catch {
+        continue;
+      }
     } catch {
       continue;
     }

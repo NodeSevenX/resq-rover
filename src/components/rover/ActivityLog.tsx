@@ -6,7 +6,7 @@ const levelStyles: Record<string, { icon: typeof Info; color: string; bg: string
   info: { icon: Info, color: 'text-blue-600', bg: 'bg-blue-50' },
   success: { icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
-  error: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
+  error: { icon: XCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
 };
 
 export function ActivityLog({ limit = 7 }: { limit?: number }) {

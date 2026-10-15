@@ -16,8 +16,9 @@ Live demo: https://resq-rover.vercel.app
 
 The dashboard polls three HTTP endpoints on the ESP32 (default `http://192.168.4.2`):
 
-- `GET /status` -> `{ batteryPct, rssiDbm, uptimeS, tempC, mode, payload, missionPct }`
+- `GET /status` -> `{ espBatteryPct, stmBatteryPct, rssiDbm, uptimeS, tempC, tiltXDeg, tiltYDeg, mode, payload, missionPct }`
 - `GET /gps` -> `{ lat, lng, speedMps, headingDeg, sats, hdop }`
+- `GET /radar` -> `[{ angle, dist }]` (or `[[angle, dist]]`, or `{ points: [...] }`; metres, cm auto-detected)
 - `GET /logs` -> plain text lines, or a JSON array
 
 Field names are tolerant (`battery`/`batteryPct`, `lng`/`lon`, `sats`/`satellites` all parse). Speed and heading are optional; they get derived from GPS deltas. Enable CORS on the ESP32 or the browser blocks polling. Open the **Setup** button in the app for copy-paste firmware.
